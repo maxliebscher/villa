@@ -1,16 +1,7 @@
 name: 'Build crackle-viewer'
 
 permissions:
-  contents: write
-  actions: write
-  checks: write
-  deployments: write
-  issues: write
-  packages: write
-  pull-requests: write
-  repository-projects: write
-  security-events: write
-  statuses: write
+  contents: read
   
 on:
   push:
@@ -28,13 +19,15 @@ on:
 jobs:
   build:
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     strategy:
       matrix:
         os: [ubuntu-20.04, macos-12, windows-2019]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
     - name: Install Ubuntu dependencies
@@ -50,25 +43,51 @@ jobs:
       working-directory: ${{ github.workspace }}/crackle-viewer
       run: |
         pyinstaller crackle_viewer.spec
-    - name: Upload Artifacts
+
+    - name: Zip Executable and Dependencies
+      shell: pwsh
+      working-directory: ${{ github.workspace }}/crackle-viewer
+      run: |
+        $osType = "${{ runner.os }}"
+        if ($osType -eq "Windows") {
+          # PowerShell command for Windows
+          Compress-Archive -Path dist/* -DestinationPath "$osType-Executable.zip"
+        } else {
+          # Use PowerShell's native capabilities to handle Linux/macOS zipping if necessary
+          & bash -c "cd dist && zip -r ../$osType-Executable.zip ./* && cd .."
+        }
+
+    - name: Upload build artifact
       uses: actions/upload-artifact@v4
       with:
         name: ${{ runner.os }}-Executable
-        path: dist/*
+        path: ${{ github.workspace }}/crackle-viewer/${{ runner.os }}-Executable.zip
 
-    - name: Create or Get Release
+  release:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: release-assets
+        merge-multiple: true
+
+    - name: Create or get release
       id: create_release
-      uses: actions/github-script@v5
+      uses: actions/github-script@v7
       with:
         script: |
-          const latestCommitSha = process.env.GITHUB_SHA.substring(0, 7); // Use the first 7 characters of the SHA
-          const fullCommitSha = process.env.GITHUB_SHA; // Full commit SHA for commitish
+          const latestCommitSha = process.env.GITHUB_SHA.substring(0, 7);
+          const fullCommitSha = process.env.GITHUB_SHA;
           const releaseName = `release-${latestCommitSha}`;
-          const tagName = `v1.0.0-${latestCommitSha}`; // Valid tag name
+          const tagName = `v1.0.0-${latestCommitSha}`;
 
           let release;
           try {
-            // Try to get the release by tag
             release = await github.rest.repos.getReleaseByTag({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -77,7 +96,6 @@ jobs:
             console.log(`Release already exists: ${release.data.id}`);
           } catch (error) {
             if (error.status === 404) {
-              // If release does not exist, create a new one
               console.log('Creating new release');
               release = await github.rest.repos.createRelease({
                 owner: context.repo.owner,
@@ -93,27 +111,10 @@ jobs:
             }
           }
 
-          core.setOutput('upload_url', release.data.upload_url);
-    
-    - name: Zip Executable and Dependencies
-      shell: pwsh
-      working-directory: ${{ github.workspace }}/crackle-viewer
-      run: |
-        $osType = "${{ runner.os }}"
-        if ($osType -eq "Windows") {
-          # PowerShell command for Windows
-          Compress-Archive -Path dist/* -DestinationPath "$osType-Executable.zip"
-        } else {
-          # Use PowerShell's native capabilities to handle Linux/macOS zipping if necessary
-          & bash -c "cd dist && zip -r ../$osType-Executable.zip ./* && cd .."
-        }
+          core.setOutput('tag_name', tagName);
 
-    - name: Upload Release Asset
-      uses: actions/upload-release-asset@v1
+    - name: Upload release assets
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ${{ github.workspace }}/crackle-viewer/${{ runner.os }}-Executable.zip
-        asset_name: ${{ runner.os }}.zip
-        asset_content_type: application/zip
+        GH_TOKEN: ${{ github.token }}
+        TAG_NAME: ${{ steps.create_release.outputs.tag_name }}
+      run: gh release upload "$TAG_NAME" release-assets/*.zip --clobber
