@@ -47,6 +47,20 @@ def _parse_positive_int(value: str, name: str) -> int:
     return parsed
 
 
+def _require_positive_finite(value: float, name: str) -> None:
+    if not np.isfinite(value) or value <= 0:
+        raise ValueError(f"{name} must be finite and positive")
+
+
+def _parse_positive_finite_float(value: str, name: str) -> float:
+    parsed = float(value)
+    try:
+        _require_positive_finite(parsed, name)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
+    return parsed
+
+
 def _parse_non_negative_int(value: str, name: str) -> int:
     parsed = int(value)
     if parsed < 0:
@@ -192,6 +206,8 @@ def run_pipeline(
         raise ValueError("metrics_sample_step must be positive")
     if k <= 0:
         raise ValueError("k must be positive")
+    power = float(power)
+    _require_positive_finite(power, "power")
     if field_query_chunk_size is not None and field_query_chunk_size <= 0:
         raise ValueError("field_query_chunk_size must be positive")
     if field_control_chunk_size is not None and field_control_chunk_size <= 0:
@@ -516,7 +532,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Uniformly sample at most this many vertices per mesh; 0 keeps all vertices.",
     )
     parser.add_argument("--k", type=lambda value: _parse_positive_int(value, "k"), default=8, help="Nearest controls used for IDW interpolation.")
-    parser.add_argument("--power", type=float, default=2.0, help="Inverse-distance power.")
+    parser.add_argument("--power", type=lambda value: _parse_positive_finite_float(value, "power"), default=2.0, help="Inverse-distance power.")
     parser.add_argument(
         "--field-query-chunk-size",
         type=lambda value: _parse_positive_int(value, "field-query-chunk-size"),

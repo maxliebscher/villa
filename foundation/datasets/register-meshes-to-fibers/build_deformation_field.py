@@ -33,6 +33,20 @@ def _parse_positive_int(value: str, name: str) -> int:
     return parsed
 
 
+def _require_positive_finite(value: float, name: str) -> None:
+    if not np.isfinite(value) or value <= 0:
+        raise ValueError(f"{name} must be finite and positive")
+
+
+def _parse_positive_finite_float(value: str, name: str) -> float:
+    parsed = float(value)
+    try:
+        _require_positive_finite(parsed, name)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
+    return parsed
+
+
 def load_control_points(path: str | Path) -> tuple[np.ndarray, np.ndarray]:
     with Path(path).open("r", encoding="utf-8") as f:
         data = json.load(f)
@@ -91,6 +105,8 @@ def interpolate_idw(
         raise ValueError("at least one control point is required")
     if int(k) <= 0:
         raise ValueError("k must be positive")
+    power = float(power)
+    _require_positive_finite(power, "power")
     if query_chunk_size is not None and int(query_chunk_size) <= 0:
         raise ValueError("query_chunk_size must be positive")
     if control_chunk_size is not None and int(control_chunk_size) <= 0:
@@ -191,7 +207,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--spacing", required=True, type=lambda value: _parse_positive_xyz(value, float, "spacing"), help="Grid spacing as x,y,z.")
     parser.add_argument("--origin", default="0,0,0", type=lambda value: _parse_xyz(value, float), help="Grid origin as x,y,z.")
     parser.add_argument("--k", type=lambda value: _parse_positive_int(value, "k"), default=8, help="Number of nearest controls used for IDW interpolation.")
-    parser.add_argument("--power", type=float, default=2.0, help="Inverse-distance power.")
+    parser.add_argument("--power", type=lambda value: _parse_positive_finite_float(value, "power"), default=2.0, help="Inverse-distance power.")
     parser.add_argument(
         "--query-chunk-size",
         type=lambda value: _parse_positive_int(value, "query-chunk-size"),

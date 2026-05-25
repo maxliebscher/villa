@@ -220,6 +220,23 @@ class BuildDeformationFieldTest(unittest.TestCase):
                 k=0,
             )
 
+    def test_interpolate_idw_rejects_non_positive_or_non_finite_power(self):
+        builder = _load_field_builder()
+
+        controls_xyz = np.array([[0.0, 0.0, 0.0]], dtype=np.float64)
+        displacements_xyz = np.array([[1.0, 2.0, 3.0]], dtype=np.float64)
+        query_xyz = np.array([[1.0, 0.0, 0.0]], dtype=np.float64)
+
+        for power in (0.0, -1.0, float("nan"), float("inf")):
+            with self.subTest(power=power):
+                with self.assertRaisesRegex(ValueError, "power must be finite and positive"):
+                    builder.interpolate_idw(
+                        query_xyz,
+                        controls_xyz,
+                        displacements_xyz,
+                        power=power,
+                    )
+
     def test_interpolate_idw_rejects_non_positive_control_chunk_size(self):
         builder = _load_field_builder()
 
@@ -367,6 +384,25 @@ class BuildDeformationFieldTest(unittest.TestCase):
                     "0",
                 ]
             )
+
+    def test_parser_rejects_non_positive_or_non_finite_power(self):
+        builder = _load_field_builder()
+        parser = builder.build_arg_parser()
+        base_args = [
+            "--controls",
+            "controls.json",
+            "--output",
+            "field.npz",
+            "--grid-shape",
+            "1,1,1",
+            "--spacing",
+            "1,1,1",
+        ]
+
+        for power in ("0", "-1", "nan", "inf"):
+            with self.subTest(power=power):
+                with self.assertRaises(SystemExit):
+                    parser.parse_args(base_args + ["--power", power])
 
     def test_parser_accepts_query_chunk_size(self):
         builder = _load_field_builder()

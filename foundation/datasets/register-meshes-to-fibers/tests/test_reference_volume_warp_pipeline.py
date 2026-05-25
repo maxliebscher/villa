@@ -124,6 +124,10 @@ class ReferenceVolumeWarpPipelineTest(unittest.TestCase):
             parser.parse_args(base_args + ["--field-control-chunk-size", "0"])
         with self.assertRaises(SystemExit):
             parser.parse_args(base_args + ["--max-points-per-mesh", "-1"])
+        for power in ("0", "-1", "nan", "inf"):
+            with self.subTest(power=power):
+                with self.assertRaises(SystemExit):
+                    parser.parse_args(base_args + ["--power", power])
 
     def test_run_pipeline_rejects_negative_chunk_depth_before_io(self):
         pipeline = _load_pipeline()
@@ -174,6 +178,33 @@ class ReferenceVolumeWarpPipelineTest(unittest.TestCase):
                 )
 
             self.assertFalse(output_dir.exists())
+
+    def test_run_pipeline_rejects_non_positive_or_non_finite_power_before_io(self):
+        pipeline = _load_pipeline()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp = Path(temp_dir)
+            source_path = temp / "source.obj"
+            registered_path = temp / "registered.obj"
+            volume_path = temp / "volume.npy"
+            output_dir = temp / "outputs"
+            source_path.write_text("v 0 0 0\nv 1 0 0\n", encoding="utf-8")
+            registered_path.write_text("v 0 0 0\nv 1 0 0\n", encoding="utf-8")
+            np.save(volume_path, np.arange(2, dtype=np.float32).reshape(1, 1, 2))
+
+            for power in (0.0, -1.0, float("nan"), float("inf")):
+                with self.subTest(power=power):
+                    with self.assertRaisesRegex(ValueError, "power must be finite and positive"):
+                        pipeline.run_pipeline(
+                            mesh_pairs=[(source_path, registered_path)],
+                            volume_path=volume_path,
+                            output_dir=output_dir,
+                            grid_shape_xyz=(2, 1, 1),
+                            field_spacing_xyz=(1.0, 1.0, 1.0),
+                            power=power,
+                        )
+
+                    self.assertFalse(output_dir.exists())
 
     def test_run_pipeline_rejects_non_positive_field_query_chunk_size_before_io(self):
         pipeline = _load_pipeline()
