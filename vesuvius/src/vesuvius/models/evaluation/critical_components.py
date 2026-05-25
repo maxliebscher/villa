@@ -11,6 +11,7 @@ from scipy.ndimage import label
 from numba import njit, prange
 import numba as nb
 from .base_metric import BaseMetric
+from .shape_handling import looks_like_channel_first_map
 
 
 # Pre-compute 26-connected neighbor offsets
@@ -62,7 +63,11 @@ class CriticalComponentsMetric(BaseMetric):
             else:
                 pred_np = pred_np.squeeze(1)
         elif pred_np.ndim == 4:  # (batch, depth, height, width) or (batch, channels, height, width)
-            if pred_np.shape[1] <= 10 and pred_np.shape[1] > 1:  # Likely channels
+            if gt_np.ndim == 5 and gt_np.shape[1] == 1 and pred_np.shape == gt_np[:, 0].shape:
+                pass
+            elif gt_np.ndim == 4 and pred_np.shape == gt_np.shape and not looks_like_channel_first_map(gt_np, 2):
+                pass
+            elif pred_np.shape[1] <= 10 and pred_np.shape[1] > 1:  # Likely channels
                 pred_np = np.argmax(pred_np, axis=1)
             elif pred_np.shape[1] == 1:
                 pred_np = pred_np.squeeze(1)

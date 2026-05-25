@@ -4,6 +4,7 @@ import torch
 import cc3d
 
 from .base_metric import BaseMetric
+from .shape_handling import looks_like_channel_first_map
 
 
 def _label_components(mask: np.ndarray, connectivity: int) -> np.ndarray:
@@ -87,7 +88,16 @@ class MeanAveragePrecisionMetric(BaseMetric):
             else:
                 pred_lbl = (pred_np[:, 0] > 0.5).astype(np.int32)
         elif pred_np.ndim == 4:
-            if pred_np.shape[1] <= 10:
+            if gt_np.ndim == 5 and gt_np.shape[1] == 1 and pred_np.shape == gt_np[:, 0].shape:
+                pred_lbl = pred_np.astype(np.int32)
+            elif gt_np.ndim == 4 and pred_np.shape == gt_np.shape and not looks_like_channel_first_map(gt_np, self.num_classes):
+                pred_lbl = pred_np.astype(np.int32)
+            elif pred_np.shape[1] == self.num_classes:
+                if pred_np.shape[1] > 1:
+                    pred_lbl = np.argmax(pred_np, axis=1).astype(np.int32)
+                else:
+                    pred_lbl = (pred_np[:, 0] > 0.5).astype(np.int32)
+            elif pred_np.shape[1] <= 10:
                 if pred_np.shape[1] > 1:
                     pred_lbl = np.argmax(pred_np, axis=1).astype(np.int32)
                 else:
@@ -104,9 +114,11 @@ class MeanAveragePrecisionMetric(BaseMetric):
             else:
                 gt_lbl = np.argmax(gt_np, axis=1).astype(np.int32)
         elif gt_np.ndim == 4:
-            if gt_np.shape[1] == 1:
+            if gt_np.shape == pred_lbl.shape:
+                gt_lbl = gt_np.astype(np.int32)
+            elif gt_np.shape[1] == 1:
                 gt_lbl = gt_np[:, 0].astype(np.int32)
-            elif gt_np.shape[1] <= 10:
+            elif looks_like_channel_first_map(gt_np, self.num_classes):
                 gt_lbl = np.argmax(gt_np, axis=1).astype(np.int32)
             else:
                 gt_lbl = gt_np.astype(np.int32)
