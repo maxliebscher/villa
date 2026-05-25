@@ -63,11 +63,15 @@ The `nnUNetTrainerSkeletonRecall_MedNeXtL_kernel5` trainer
 swaps the default ResEnc U-Net for MedNeXt-L kernel5 while keeping the SkeletonRecall
 loss, transform pipeline, and data loaders untouched. It targets the failure mode
 described in [issue #191](https://github.com/ScrollPrize/villa/issues/191) (surface
-predictions in compressed / highly curved areas). On a held-out 5-cube benchmark
-over PHerc Paris 1 (S1) and PHerc 1667 (S4), it scores +0.267 absolute
-high_compressed IoU (+66% relative) over the d058 ResEnc-L production model;
-overall_macro IoU 0.534 → 0.685. Numbers and methodology:
-[issue #191 comment](https://github.com/ScrollPrize/villa/issues/191#issuecomment-4472801908).
+predictions in compressed / highly curved areas). The corrected PR #975 evaluation
+uses all 7 held-out S1 cubes from the original benchmark and the official Kaggle
+Vesuvius Surface Detection metric: MedNeXt-L + SkeletonRecall scores 0.4397 vs
+0.3996 for the d058 production model, while a voxel-wise max(d058, MedNeXt)
+ensemble scores 0.4437. The downstream ink sanity check across three labeled
+crops scores 0.7602 mean AUC with the MedNeXt morph pipeline vs 0.5083 with the
+d058 morph pipeline. Numbers, methodology, and caveats:
+[PR #975](https://github.com/ScrollPrize/villa/pull/975) and the
+[supporting writeup](https://github.com/ciscoriordan/mednext-vs-umamba-scroll/blob/main/docs/pr925_re_pitch.md).
 
 Install the extra dependency:
 
@@ -75,8 +79,9 @@ Install the extra dependency:
 pip install -e ".[mednext]"
 ```
 
-(This pulls in [`mednextv1`](https://github.com/MIC-DKFZ/MedNeXt), which provides
-the MedNeXt architecture; it is not vendored.)
+(This installs the optional MedNeXt dependency that provides the architecture;
+it is not vendored. The extra points at
+[`MIC-DKFZ/MedNeXt`](https://github.com/MIC-DKFZ/MedNeXt).)
 
 Train:
 

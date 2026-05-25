@@ -95,7 +95,7 @@ dev = [
 # nnunetv2/training/nnUNetTrainer/variants/loss/nnUNetTrainerSkeletonRecall_MedNeXtL_kernel5.py
 # Install with: pip install -e ".[mednext]"
 mednext = [
-    "mednextv1"
+    "mednextv1 @ git+https://github.com/MIC-DKFZ/MedNeXt.git"
 ]
 
 [build-system]
